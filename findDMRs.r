@@ -8,6 +8,15 @@
 # Underlying statistics are performed using the R package 'DSS'
 #   (https://bioconductor.org/packages/release/bioc/html/DSS.html).
 
+version <- '0.1'
+copyright <- 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
+
+printVersion <- function() {
+  cat('findDMRs.r from DMRfinder, version', version, '\n')
+  cat(copyright, '\n')
+  q()
+}
+
 usage <- function() {
   cat('Usage: Rscript findDMRs.r  [options]  -i <input>  -o <output>  \\
              <groupList1>  <groupList2>  [...]
@@ -49,14 +58,13 @@ dss <- c('chr', 'pos', 'mu', 'diff', 'pval') # columns of DSS output to keep
 
 # get CL args
 args <- commandArgs(trailingOnly=T)
-if (length(args) < 6) {
-  usage()
-}
 i <- 1
 while (i < length(args) + 1) {
   if (substr(args[i], 1, 1) == '-') {
     if (args[i] == '-h' || args[i] == '--help') {
       usage()
+    } else if (args[i] == '--version') {
+      printVersion()
     } else if (args[i] == '-up') {
       up <- T
     } else if (args[i] == '-down') {

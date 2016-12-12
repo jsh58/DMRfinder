@@ -10,9 +10,17 @@ import sys
 import os.path
 import gzip
 import math
+version = '0.1'
+copyright = 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
+
+def printVersion():
+  sys.stderr.write('combine_CpG_sites.py from DMRfinder, version' \
+    + ' %s\n' % version)
+  sys.stderr.write(copyright + '\n')
+  sys.exit(-1)
 
 def usage():
-  sys.stderr.write('''Usage: python combineRegions.py  [options]  -o <output>  <input(s)>
+  sys.stderr.write('''Usage: python combine_CpG_sites.py  [options]  -o <output>  <input(s)>
     <input(s)>    One or more files listing methylation counts
                     (produced by extract_CpG_data.py)
     -o <output>   Output file listing genomic regions and combined
@@ -267,11 +275,12 @@ def main():
 
   # Get command-line args
   args = sys.argv[1:]
-  if len(args) < 3: usage()
   i = 0
   while i < len(args):
     if args[i] == '-h' or args[i] == '--help':
       usage()
+    elif args[i] == '--version':
+      printVersion()
     elif args[i] == '-v':
       verbose = True
     elif args[i] == '-f':
