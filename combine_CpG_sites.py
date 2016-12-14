@@ -10,7 +10,7 @@ import sys
 import os.path
 import gzip
 import math
-version = '0.1'
+#version = '0.1'
 copyright = 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
 
 def printVersion():

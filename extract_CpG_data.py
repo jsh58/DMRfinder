@@ -32,7 +32,6 @@ def usage():
     -s            Report strand in third column of output
     -b <file>     BED file listing regions for which to collect
                     linked methylation data
-    -v            Run in verbose mode
 ''')
   sys.exit(-1)
 
@@ -163,12 +162,12 @@ def printOutput(fOut, genome, meth, minCov, strand, verbose):
       if strand:
         # 3rd column is strand ('+')
         fOut.write('%s\t%d\t+\t%.6f\t%d\t%d\n' % (chrom, loc,
-          100.0 * meth[chrom][loc][0] / total,
+          100.0 * meth[chrom][loc][1] / total,
           meth[chrom][loc][1], meth[chrom][loc][0]))
       else:
         # 3rd column is end (loc+1)
         fOut.write('%s\t%d\t%d\t%.6f\t%d\t%d\n' % (chrom, loc, loc+1,
-          100.0 * meth[chrom][loc][0] / total,
+          100.0 * meth[chrom][loc][1] / total,
           meth[chrom][loc][1], meth[chrom][loc][0]))
       printed += 1
   return printed
