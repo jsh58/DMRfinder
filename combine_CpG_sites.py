@@ -20,9 +20,9 @@ def printVersion():
   sys.exit(-1)
 
 def usage():
-  sys.stderr.write('''Usage: python combine_CpG_sites.py  [options]  -o <output>  <input(s)>
-    <input(s)>    One or more files listing methylation counts
-                    (produced by extract_CpG_data.py)
+  sys.stderr.write('''Usage: python combine_CpG_sites.py  [options]  -o <output>  [<input>]+
+    [<input>]+    One or more files, each listing methylation counts
+                    for a particular sample
     -o <output>   Output file listing genomic regions and combined
                     methylation counts for each sample
   Options:
@@ -37,7 +37,6 @@ def usage():
       -m <int>    Min. total reads in a region (def. 1)
     Other:
       -f          Report methylation fraction for each sample
-      -v          Run in verbose mode
 ''')
   sys.exit(-1)
 
@@ -83,7 +82,7 @@ def getInt(arg):
   return val
 
 def splitRegion(chrom, reg, count, minCpG, minReg, \
-    maxLen, samples, fOut):
+    maxLen, samples, fraction, fOut):
   '''
   Split a CpG region that is too large and process
     each subregion via processRegion().
@@ -120,7 +119,7 @@ def splitRegion(chrom, reg, count, minCpG, minReg, \
   for end in ends:
     # pass to processRegion()
     total += processRegion(chrom, reg[start:end], count, minCpG,
-      minReg, float('inf'), samples, fOut)
+      minReg, float('inf'), samples, fraction, fOut)
     start = end
 
   return total
@@ -147,7 +146,7 @@ def processRegion(chrom, reg, count, minCpG, minReg, \
   # split region larger than maxLen
   if reg[-1] - reg[0] > maxLen:
     return splitRegion(chrom, reg, count, minCpG, minReg, \
-      maxLen, samples, fOut)
+      maxLen, samples, fraction, fOut)
 
   flag = 0  # boolean for printing line
   res = '%s\t%d\t%d\t%d' % (chrom, reg[0], reg[-1], len(reg))
