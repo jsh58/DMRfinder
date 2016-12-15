@@ -8,7 +8,7 @@
 # Underlying statistics are performed using the R package 'DSS'
 #   (https://bioconductor.org/packages/release/bioc/html/DSS.html).
 
-version <- '0.1'
+#version <- '0.1'
 copyright <- 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
 
 printVersion <- function() {
@@ -21,7 +21,6 @@ usage <- function() {
   cat('Usage: Rscript findDMRs.r  [options]  -i <input>  -o <output>  \\
              <groupList1>  <groupList2>  [...]
     -i <input>    File listing genomic regions and methylation counts
-                    (output from combine_CpG_sites.py)
     -o <output>   Output file listing methylation results
     <groupList>   Comma-separated list of sample names (at least two
                     such lists must be provided)
@@ -31,11 +30,11 @@ usage <- function() {
                     separated; def. "chr, start, end, CpG")
     -s <str>      Column names of DSS output to include in <output>
                     (comma-separated; def. "mu, diff, pval")
-    -c <int>      Min. number of CpGs in a region (def. 1)
+    -c <int>      Min. number of CpGs in a region (def. 3)
     -d <float>    Min. methylation difference between sample groups
-                    ([0-1]; def. 0 [all results reported, except "NA"])
-    -p <float>    Max. p-value ([0-1]; def. 1 [all results reported])
-    -q <float>    Max. q-value ([0-1]; def. 1 [all results reported])
+                    ([0-1]; def. 0.10)
+    -p <float>    Max. p-value ([0-1]; def. 0.05)
+    -q <float>    Max. q-value ([0-1]; def. 1)
     -up           Report only regions hypermethylated in later group
     -down         Report only regions hypomethylated in later group
     -t <int>      Report regions that have at least <int> comparisons
@@ -47,24 +46,27 @@ usage <- function() {
 # default args/parameters
 infile <- outfile <- groups <- NULL
 names <- list()        # list of sample names
-minCpG <- 1            # min. number of CpGs
-minDiff <- 0           # min. methylation difference
-maxPval <- 1           # max. p-value
+minCpG <- 3            # min. number of CpGs
+minDiff <- 0.10        # min. methylation difference
+maxPval <- 0.05        # max. p-value
 maxQval <- 1           # max. q-value (fdr)
 up <- down <- F        # report NA/hyper-/hypo- methylated results
 tCount <- 1            # min. number of significant comparisons
+verbose <- F           # verbose option
 keep <- c('chr', 'start', 'end', 'CpG')  # columns of input to keep
 dss <- c('chr', 'pos', 'mu', 'diff', 'pval') # columns of DSS output to keep
 
 # get CL args
 args <- commandArgs(trailingOnly=T)
 i <- 1
-while (i < length(args) + 1) {
+while (i <= length(args)) {
   if (substr(args[i], 1, 1) == '-') {
     if (args[i] == '-h' || args[i] == '--help') {
       usage()
     } else if (args[i] == '--version') {
       printVersion()
+    } else if (args[i] == '-v') {
+      verbose <- T
     } else if (args[i] == '-up') {
       up <- T
     } else if (args[i] == '-down') {
@@ -121,6 +123,11 @@ if (length(names) < 2) {
   cat('Error! Must specify at least two groups of samples\n')
   usage()
 }
+if (any(duplicated(unlist(names)))) {
+  stop('Sample(s) repeated in different groups: ',
+    paste(unique(unlist(names)[duplicated(unlist(names))]),
+    collapse=', '), '\n')
+}
 keep <- unique(keep)
 dss <- unique(dss)
 
@@ -139,11 +146,15 @@ for (i in 1:length(names)) {
 }
 
 # load DSS
-cat('Loading DSS package\n')
+if (verbose) {
+  cat('Loading DSS package\n')
+}
 suppressMessages(library(DSS))
 
 # load data, check for errors
-cat('Loading methylation data from', infile, '\n')
+if (verbose) {
+  cat('Loading methylation data from', infile, '\n')
+}
 data <- read.csv(input, sep='\t', header=T, check.names=F)
 if (any( ! keep %in% colnames(data))) {
   stop('Missing column(s) in input file ', infile, ': ',
@@ -153,33 +164,6 @@ if (colnames(data)[1] != 'chr') {
   stop('Improperly formatted input file ', infile, ':\n',
     '  Must have "chr" as first column\n')
 }
-
-# sort chromosome names by number/letter
-level <- levels(data$chr)
-intChr <- strChr <- intLev <- strLev <- c()
-for (i in 1:length(level)) {
-  if (substr(level[i], 1, 3) == 'chr') {
-    sub <- substr(level[i], 4, nchar(level[i]))
-    if (!is.na(suppressWarnings(as.integer(sub)))) {
-      intChr <- c(intChr, as.numeric(sub))
-    } else {
-      strChr <- c(strChr, sub)
-    }
-  } else {
-    sub <- level[i]
-    if (!is.na(suppressWarnings(as.integer(sub)))) {
-      intLev <- c(intLev, as.numeric(sub))
-    } else {
-      strLev <- c(strLev, sub)
-    }
-  }
-}
-# put numeric chroms first, then strings
-chrOrder <- c(paste('chr', levels(factor(intChr)), sep=''),
-  levels(factor(intLev)),
-  paste('chr', levels(factor(strChr)), sep=''),
-  levels(factor(strLev)))
-data$chr <- factor(data$chr, levels=chrOrder)
 
 # determine columns for samples
 idx <- list()
@@ -235,14 +219,29 @@ for (i in 1:(length(samples)-1)) {
     # perform DML test
     comp <- paste(names(samples)[i], names(samples)[j], sep='->')
     comps <- c(comps, comp)
-    cat('Comparing group "', names(samples)[i],
-      '" to group "', names(samples)[j], '"\n', sep='')
+    if (verbose) {
+      cat('Comparing group "', names(samples)[i],
+        '" to group "', names(samples)[j], '"\n  ', sep='')
+    }
     if (length(samples[[ i ]]) < 2 || length(samples[[ j ]]) < 2) {
       # without replicates, must set equal.disp=T
-      dml <- DMLtest(bsdata, group1=samples[[ i ]], group2=samples[[ j ]],
-        equal.disp=T)
+      if (verbose) {
+        dml <- DMLtest(bsdata, group1=samples[[ i ]], group2=samples[[ j ]],
+          equal.disp=T)
+      } else {
+        sink('/dev/null')
+        dml <- DMLtest(bsdata, group1=samples[[ i ]], group2=samples[[ j ]],
+          equal.disp=T)
+        sink()
+      }
     } else {
-      dml <- DMLtest(bsdata, group1=samples[[ i ]], group2=samples[[ j ]])
+      if (verbose) {
+        dml <- DMLtest(bsdata, group1=samples[[ i ]], group2=samples[[ j ]])
+      } else {
+        sink('/dev/null')
+        dml <- DMLtest(bsdata, group1=samples[[ i ]], group2=samples[[ j ]])
+        sink()
+      }
     }
 
     # make sure necessary columns are present, remove extraneous
@@ -257,8 +256,7 @@ for (i in 1:(length(samples)-1)) {
     # add results to res table
     start <- ncol(res) + 1
     res <- suppressWarnings( merge(res, dml,
-      by.x=c('chr', 'start'), by.y=c('chr', 'pos'),
-      all.x=T) )
+      by.x=c('chr', 'start'), by.y=c('chr', 'pos'), all.x=T) )
 
     # determine if rows meet threshold(s)
     if (maxQval < 1) {
@@ -292,7 +290,9 @@ for (i in 1:(length(samples)-1)) {
 }
 
 # filter regions based on CpG sites and mat matrix
-cat('Producing output file', outfile, '\n')
+if (verbose) {
+  cat('Producing output file', outfile, '\n')
+}
 res <- res[res[, 'CpG'] >= minCpG & rowSums(mat) >= tCount, ]
 
 # for repeated columns, average the values
@@ -323,10 +323,9 @@ for (i in 1:ncol(res)) {
 }
 res <- res[, c(keep, sampleCols, groupCols)]
 
-# write output results
+# limit results to 7 digits; reverse sign on diffs
 options(scipen=999)
 for (col in c(sampleCols, groupCols)) {
-  # limit results to 7 digits; reverse sign on diffs
   spl <- strsplit(col, ':')[[1]]
   if (spl[length(spl)] == 'diff') {
     res[, col] <- -round(res[, col], digits=7)
@@ -334,5 +333,36 @@ for (col in c(sampleCols, groupCols)) {
     res[, col] <- round(res[, col], digits=7)
   }
 }
-write.table(res, output, sep='\t', quote=F, row.names=F)
-cat('Regions reported:', nrow(res), '\n')
+
+# sort chromosome names by number/letter
+level <- levels(res$chr)
+intChr <- strChr <- intLev <- strLev <- c()
+for (i in 1:length(level)) {
+  if (substr(level[i], 1, 3) == 'chr') {
+    sub <- substr(level[i], 4, nchar(level[i]))
+    if (!is.na(suppressWarnings(as.integer(sub)))) {
+      intChr <- c(intChr, as.numeric(sub))
+    } else {
+      strChr <- c(strChr, sub)
+    }
+  } else {
+    sub <- level[i]
+    if (!is.na(suppressWarnings(as.integer(sub)))) {
+      intLev <- c(intLev, as.numeric(sub))
+    } else {
+      strLev <- c(strLev, sub)
+    }
+  }
+}
+# put numeric chroms first, then strings
+chrOrder <- c(paste('chr', levels(factor(intChr)), sep=''),
+  levels(factor(intLev)),
+  paste('chr', levels(factor(strChr)), sep=''),
+  levels(factor(strLev)))
+
+# write output results
+write.table(res[order(match(res$chr, chrOrder), res$start), ],
+  output, sep='\t', quote=F, row.names=F)
+if (verbose) {
+  cat('Regions reported:', nrow(res), '\n')
+}
