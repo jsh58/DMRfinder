@@ -27,14 +27,14 @@ def usage():
                     methylation counts for each sample
   Options:
     To consider a particular CpG:
-      -r <int>    Min. number of counts at a position (def. 1)
+      -r <int>    Min. number of counts at a position (def. 3)
       -s <int>    Min. number of samples with -r counts (def. 1)
     To analyze a region of CpGs:
       -d <int>    Max. distance between CpG sites (def. 100)
-      -c <int>    Min. number of CpGs in a region (def. 1)
-      -x <int>    Max. length of a region (def. 1e9)
+      -c <int>    Min. number of CpGs in a region (def. 3)
+      -x <int>    Max. length of a region (def. 500)
     To report a particular result:
-      -m <int>    Min. total reads in a region (def. 1)
+      -m <int>    Min. total counts in a region (def. 20)
     Other:
       -f          Report methylation fraction for each sample
 ''')
@@ -148,7 +148,7 @@ def processRegion(chrom, reg, count, minCpG, minReg, \
     return splitRegion(chrom, reg, count, minCpG, minReg, \
       maxLen, samples, fraction, fOut)
 
-  flag = 0  # boolean for printing line
+  flag = False  # boolean for printing line
   res = '%s\t%d\t%d\t%d' % (chrom, reg[0], reg[-1], len(reg))
   for sample in samples:
     meth = unmeth = 0
@@ -169,7 +169,7 @@ def processRegion(chrom, reg, count, minCpG, minReg, \
         res += '\t%f' % (meth / float(meth + unmeth))
       else:
         res += '\t%d\t%d' % (meth + unmeth, meth)  # actual counts
-      flag = 1
+      flag = True
   if flag:
     fOut.write(res + '\n')
     return 1
@@ -263,12 +263,12 @@ def main():
   # Default parameters
   infiles = []        # list of input files
   outfile = None      # output file
-  minReads = 1        # min. reads in a sample at a position
+  minReads = 3        # min. reads in a sample at a position
   minSamples = 1      # min. samples with min. reads at a position
   maxDist = 100       # max. distance between CpGs
-  minCpG = 1          # min. CpGs in a region
-  minReg = 1          # min. reads in a sample for a region
-  maxLen = 1000000000 # max. length of a combined region
+  minCpG = 3          # min. CpGs in a region
+  minReg = 20         # min. reads in a sample for a region
+  maxLen = 500        # max. length of a combined region
   fraction = False    # report methylated fractions option
   verbose = False     # verbose option
 

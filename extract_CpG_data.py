@@ -10,7 +10,7 @@ import sys
 import os.path
 import re
 import gzip
-version = '0.1'
+#version = '0.1'
 copyright = 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
 
 def printVersion():
@@ -28,7 +28,7 @@ def usage():
                     unmethylated CpGs, merged and sorted
   Options:
     -m <int>      Minimum coverage (methylation counts) to report a
-                    CpG site (def. 1 [all sites reported])
+                    CpG site (def. 1)
     -s            Report strand in third column of output
     -b <file>     BED file listing regions for which to collect
                     linked methylation data
