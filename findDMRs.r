@@ -26,7 +26,7 @@ usage <- function() {
                     such lists must be provided)
   Options:
     -n <str>      Comma-separated list of group names
-    -k <str>      Columns of <input> to copy to <output> (comma-
+    -k <str>      Column names of <input> to copy to <output> (comma-
                     separated; def. "chr, start, end, CpG")
     -s <str>      Column names of DSS output to include in <output>
                     (comma-separated; def. "mu, diff, pval")
@@ -37,7 +37,7 @@ usage <- function() {
     -q <float>    Max. q-value ([0-1]; def. 1)
     -up           Report only regions hypermethylated in later group
     -down         Report only regions hypomethylated in later group
-    -t <int>      Report regions that have at least <int> comparisons
+    -t <int>      Report regions with at least <int> comparisons
                     that are significant (def. 1)
 ')
   q()
@@ -77,11 +77,14 @@ while (i <= length(args)) {
       } else if (args[i] == '-o') {
         outfile <- args[i + 1]
       } else if (args[i] == '-n') {
-        groups <- strsplit(args[i + 1], '[ ,]')[[1]]
+        temp <- strsplit(args[i + 1], '[ ,]')[[1]]
+        groups <- temp[nchar(temp) > 0]
       } else if (args[i] == '-k') {
-        keep <- c(keep, strsplit(args[i + 1], '[ ,]')[[1]])
+        temp <- strsplit(args[i + 1], '[ ,]')[[1]]
+        keep <- c(keep, temp[nchar(temp) > 0])
       } else if (args[i] == '-s') {
-        dss <- c(dss, strsplit(args[i + 1], '[ ,]')[[1]])
+        temp <- strsplit(args[i + 1], '[ ,]')[[1]]
+        dss <- c(dss, temp[nchar(temp) > 0])
       } else if (args[i] == '-c') {
         minCpG <- as.integer(args[i + 1])
       } else if (args[i] == '-d') {
@@ -103,7 +106,8 @@ while (i <= length(args)) {
       usage()
     }
   } else {
-    names <- c(names, strsplit(args[i], '[ ,]'))
+    temp <- strsplit(args[i], '[ ,]')[[1]]
+    names <- c(names, list(temp[nchar(temp) > 0]))
   }
   i <- i + 1
 }
