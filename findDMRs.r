@@ -8,7 +8,7 @@
 # Underlying statistics are performed using the R package 'DSS'
 #   (https://bioconductor.org/packages/release/bioc/html/DSS.html).
 
-#version <- '0.1'
+version <- '0.1'
 copyright <- 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
 
 printVersion <- function() {

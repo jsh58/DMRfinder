@@ -10,7 +10,7 @@ import sys
 import os.path
 import gzip
 import math
-#version = '0.1'
+version = '0.1'
 copyright = 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
 
 def printVersion():
@@ -179,8 +179,9 @@ def combineRegions(count, total, order, minSamples, maxDist, \
     minCpG, minReg, maxLen, samples, fraction, fOut):
   '''
   Combine data from CpG positions that are close to each
-    other. Process combined regions on the fly (via
-    processRegion() function).
+    other (a modified single-linkage clustering, with
+    distance parameter maxDist). Process combined regions
+    on the fly (via processRegion() function).
   '''
   printed = 0  # count of printed regions
   for chrom in order:
