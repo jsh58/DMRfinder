@@ -22,8 +22,8 @@ def printVersion():
 def usage():
   sys.stderr.write('''Usage: python extract_CpG_data.py  [options]  -i <input>  -o <output>
     -i <input>    SAM alignment file produced by Bismark (must have
-                    a header and 'XM' methylation strings; can use
-                    '-' for stdin)
+                    a header, 'XM' methylation strings, and 'XG'
+                    genome designations; can use '-' for stdin)
     -o <output>   Output file listing counts of methylated and
                     unmethylated CpGs, merged and sorted
   Options:
