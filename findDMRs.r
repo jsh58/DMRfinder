@@ -43,6 +43,33 @@ usage <- function() {
   q()
 }
 
+# error function for missing sample name
+missingSample <- function(sample, infile, names) {
+  cat('Error! Missing information for sample "', sample,
+    '" from input file ', infile, '.\n',
+    '  Valid sample names are:', sep='')
+  nIdx <- xIdx <- NULL
+  for (n in names) {
+    spl <- strsplit(n, '-')[[1]]
+    if (length(spl) < 2) { next }
+    if (spl[length(spl)] == 'N') {
+      if (spl[-length(spl)] %in% xIdx) {
+        cat(' ', spl[-length(spl)], sep='')
+      } else {
+        nIdx <- c(nIdx, spl[-length(spl)])
+      }
+    } else if (spl[length(spl)] == 'X') {
+      if (spl[-length(spl)] %in% nIdx) {
+        cat(' ', spl[-length(spl)], sep='')
+      } else {
+        xIdx <- c(xIdx, spl[-length(spl)])
+      }
+    }
+  }
+  cat('\n')
+  q()
+}
+
 # default args/parameters
 infile <- outfile <- groups <- NULL
 names <- list()        # list of sample names
@@ -112,21 +139,33 @@ while (i <= length(args)) {
   i <- i + 1
 }
 
-# check for I/O errors, repeated columns
+# check for parameter errors
 if (is.null(infile) || is.null(outfile)) {
   cat('Error! Must specify input and output files\n')
   usage()
 }
+if (length(names) < 2) {
+  cat('Error! Must specify at least two groups of samples\n')
+  usage()
+}
+
+# check DSS installation
+if (verbose) {
+  cat('Loading DSS package\n')
+}
+if (!suppressMessages(suppressWarnings(require(DSS)))) {
+  stop('Required package "DSS" not installed.\n',
+    '  For installation information, please see:\n',
+    '  https://bioconductor.org/packages/release/bioc/html/DSS.html\n')
+}
+
+# check for I/O errors, repeated columns
 input <- tryCatch( file(infile, 'r'), warning=NULL,
   error=function(e) stop('Cannot read input file ',
   infile, '\n', call.=F) )
 output <- tryCatch( file(outfile, 'w'), warning=NULL,
   error=function(e) stop('Cannot write to output file ',
   outfile, '\n', call.=F) )
-if (length(names) < 2) {
-  cat('Error! Must specify at least two groups of samples\n')
-  usage()
-}
 if (any(duplicated(unlist(names)))) {
   stop('Sample(s) repeated in different groups: ',
     paste(unique(unlist(names)[duplicated(unlist(names))]),
@@ -148,12 +187,6 @@ for (i in 1:length(names)) {
   }
   samples[[ group ]] <- names[i][[1]]
 }
-
-# load DSS
-if (verbose) {
-  cat('Loading DSS package\n')
-}
-suppressMessages(library(DSS))
 
 # load data, check for errors
 if (verbose) {
@@ -192,10 +225,7 @@ for (i in names(samples)) {
     }
     if ( is.na(idx[[ 'N' ]][[ i ]][ j ])
         || is.na(idx[[ 'X' ]][[ i ]][ j ]) ) {
-      stop('Missing information from input file ', infile, ':\n',
-        '  For sample "', samples[[ i ]][ j ], '", need both "',
-        samples[[ i ]][ j ], '-N" and "',
-        samples[[ i ]][ j ], '-X" columns')
+      missingSample(samples[[ i ]][ j ], infile, colnames(data))
     }
   }
 }
