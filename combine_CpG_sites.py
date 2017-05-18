@@ -343,6 +343,10 @@ def main():
     fOut.close()
   if verbose:
     sys.stderr.write('Genomic regions printed: %d\n' % printed)
+    sys.stderr.write('Valid sample names:')
+    for sample in samples:
+      sys.stderr.write(' ' + sample)
+    sys.stderr.write('\n')
 
 if __name__ == '__main__':
   main()
