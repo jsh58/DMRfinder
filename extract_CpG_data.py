@@ -10,7 +10,7 @@ import sys
 import os.path
 import re
 import gzip
-version = '0.2'
+version = '0.3'
 copyright = 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
 
 def printVersion():
@@ -30,8 +30,10 @@ def usage():
     -m <int>      Minimum coverage (methylation counts) to report a
                     CpG site (def. 1)
     -s            Report strand in third column of output
-    -b <file>     BED file listing regions for which to collect
+    -n <file>     BED file listing regions for which to collect
                     linked methylation data
+    -b            Memory-saving option (with coordinate-sorted SAM)
+    -e <file>     Output file listing ordered chromosomes
 ''')
   sys.exit(-1)
 
@@ -131,10 +133,10 @@ def printBed(bedOut, bedRegions, bedSites, linkedMeth):
     for head in linkedMeth[reg]:
       res = ''  # result string -- meth data for each read
       for pos in sorted(bedSites[reg]):
-        if pos not in linkedMeth[reg][head][chrom]:
+        if pos not in linkedMeth[reg][head]:
           res += '-'  # no data: labeled '-'
           continue
-        unmeth, meth = linkedMeth[reg][head][chrom][pos]
+        unmeth, meth = linkedMeth[reg][head][pos]
         if unmeth == 1:
           res += '0'  # unmethylated: labeled '0'
         elif meth == 1:
@@ -146,30 +148,27 @@ def printBed(bedOut, bedRegions, bedSites, linkedMeth):
       bedOut.write('%s\t%s\n' % (res, head))
     bedOut.write('\n')
 
-def printOutput(fOut, genome, meth, minCov, strand, verbose):
+def printOutput(fOut, chrom, meth, minCov, strand):
   '''
   Print the sorted output -- location and methylation counts
     for each CpG with at least minCov data values.
   '''
-  if verbose:
-    sys.stderr.write('Printing the output file\n')
   printed = 0
-  for chrom in genome:
-    for loc in sorted(meth[chrom]):
-      total = meth[chrom][loc][0] + meth[chrom][loc][1]
-      if total < minCov:
-        continue  # fails to meet minimum coverage
-      if strand:
-        # 3rd column is strand ('+')
-        fOut.write('%s\t%d\t+\t%.6f\t%d\t%d\n' % (chrom, loc,
-          100.0 * meth[chrom][loc][1] / total,
-          meth[chrom][loc][1], meth[chrom][loc][0]))
-      else:
-        # 3rd column is end (loc+1)
-        fOut.write('%s\t%d\t%d\t%.6f\t%d\t%d\n' % (chrom, loc, loc+1,
-          100.0 * meth[chrom][loc][1] / total,
-          meth[chrom][loc][1], meth[chrom][loc][0]))
-      printed += 1
+  for loc in sorted(meth, key=int):
+    total = meth[loc][0] + meth[loc][1]
+    if total < minCov:
+      continue  # fails to meet minimum coverage
+    if strand:
+      # 3rd column is strand ('+')
+      fOut.write('%s\t%s\t+\t%.6f\t%d\t%d\n' % (chrom, loc,
+        100.0 * meth[loc][1] / total,
+        meth[loc][1], meth[loc][0]))
+    else:
+      # 3rd column is end (loc+1)
+      fOut.write('%s\t%s\t%d\t%.6f\t%d\t%d\n' % (chrom, loc,
+        int(loc) + 1, 100.0 * meth[loc][1] / total,
+        meth[loc][1], meth[loc][0]))
+    printed += 1
   return printed
 
 def parseCigar(cigar):
@@ -193,19 +192,17 @@ def getTag(lis, tag):
   sys.stderr.write('Error! Cannot find %s in SAM record\n' % tag)
   sys.exit(-1)
 
-def saveMeth(d, chrom, loc, meth):
+def saveMeth(d, loc, meth):
   '''
   Save the methylation info for a given genomic position
     to the given dict (d).
   '''
-  if chrom not in d:
-    d[chrom] = {}
-  if loc not in d[chrom]:
-    d[chrom][loc] = [0, 0]
+  if loc not in d:
+    d[loc] = [0, 0]
   if meth == 'z':
-    d[chrom][loc][0] += 1  # unmethylated: index 0
+    d[loc][0] += 1  # unmethylated: index 0
   else:
-    d[chrom][loc][1] += 1  # methylated: index 1
+    d[loc][1] += 1  # methylated: index 1
 
 def loadMeth(cigar, strXM, chrom, pos, rc, meth, ins, dup,
     peMeth, head, bedRegions, bedSites, linkedMeth):
@@ -230,23 +227,24 @@ def loadMeth(cigar, strXM, chrom, pos, rc, meth, ins, dup,
         while j > -1 and cigar[j] != 'M':
           j -= 1
         loc -= cigPos - j - 1
+      strLoc = str(loc)
 
       # skip if position has been counted in a previous alignment
-      if dup == 2 and chrom in peMeth and loc in peMeth[chrom]:
+      if dup == 2 and strLoc in peMeth:
         break
 
       # for "novel" CpG sites created by an insertion,
       #   save to 'ins' dictionary
       if (not rc and cigar[cigPos] == 'I') or \
           (rc and cigPos > 0 and cigar[cigPos-1] == 'I'):
-        saveMeth(ins, chrom, loc, strXM[i])
+        saveMeth(ins, strLoc, strXM[i])
       # otherwise, save to regular 'meth' dict
       else:
-        saveMeth(meth, chrom, loc, strXM[i])
+        saveMeth(meth, strLoc, strXM[i])
 
       # if p-e alignment, also save to 'peMeth' dict
       if dup == 1:
-        saveMeth(peMeth, chrom, loc, strXM[i])
+        saveMeth(peMeth, strLoc, strXM[i])
 
       # save methylation data if it falls within a BED region
       for reg in bedRegions:
@@ -257,7 +255,7 @@ def loadMeth(cigar, strXM, chrom, pos, rc, meth, ins, dup,
             linkedMeth[reg] = {}
           if head not in linkedMeth[reg]:
             linkedMeth[reg][head] = {}
-          saveMeth(linkedMeth[reg][head], chrom, loc, strXM[i])
+          saveMeth(linkedMeth[reg][head], loc, strXM[i])
           # save location to bedSites dict
           if loc not in bedSites[reg]:
             bedSites[reg].append(loc)
@@ -278,28 +276,43 @@ def loadMeth(cigar, strXM, chrom, pos, rc, meth, ins, dup,
 
   return methCount, count
 
-def parseSAM(f, meth, bedRegions, bedSites, linkedMeth, verbose):
+def parseSAM(f, bedRegions, bedSites, linkedMeth, sortOpt,
+    outfile, minCov, strand, verbose):
   '''
   Parse the SAM file. Save methylation data.
   '''
   if verbose:
     sys.stderr.write('Processing the SAM file\n')
-  genome = []  # for chromosome names, ordered in SAM header
-  ins = {}     # for novel CpGs caused by insertion
-  peMeth = {}  # for checking overlapping of paired-end alignments
+  coord = False  # is SAM coordinate-sorted
+  genome = []    # for chromosome names, ordered in SAM header
+  meth = {}      # for methylation counts
+  ins = {}       # for novel CpGs caused by insertion
+  peMeth = {}    # for checking overlapping of paired-end alignments
   total = mapped = 0     # counting variables for reads
   methCount = count = 0  # counting variables for methylation data
+  printed = 0    # count of CpG sites printed (sortOpt only)
+  refChrom = ''  # chromosome being analyzed
   for line in f:
 
-    # save chromosome names
+    # save SAM header info (incl. chromosome names)
     if line[0] == '@':
-      spl = line.rstrip().split('\t')[1].split(':')
-      if line[1:3] == 'SQ' and spl[0] == 'SN':
-        meth[spl[1]] = {}
-        genome.append(spl[1])
+      spl = line.rstrip().split('\t')
+      if spl[0] == '@HD':
+        if 'SO:coordinate' in spl:
+          coord = True
+      elif spl[0] == '@SQ':
+        for s in spl:
+          div = s.split(':')
+          if div[0] == 'SN':
+            genome.append(div[1])
       continue
 
-    # load SAM data
+    # check for sorting error
+    if sortOpt and not coord:
+      sys.stderr.write('Error! With -b option, SAM must be coordinate-sorted\n')
+      sys.exit(-1)
+
+    # load SAM record
     spl = line.rstrip().split('\t')
     if len(spl) < 11:
       sys.stderr.write('Error! Poorly formatted SAM record\n' + line)
@@ -310,8 +323,8 @@ def parseSAM(f, meth, bedRegions, bedSites, linkedMeth, verbose):
     if flag & 0x900:
       continue  # skip secondary/supplementary
     total += 1
-    if verbose and total % 1000000 == 0:
-      sys.stderr.write('Reads processed so far: %d\n' % total)
+    if verbose and not sortOpt and total % 1000000 == 0:
+      sys.stderr.write('  reads processed so far: %d\n' % total)
     if flag & 0x4:
       continue  # skip unmapped
     mapped += 1
@@ -320,11 +333,29 @@ def parseSAM(f, meth, bedRegions, bedSites, linkedMeth, verbose):
       rc = 1  # alignment is to G->A converted genome,
               #   so methylation data is on G of 'CG'
 
-    # determine if read has multiple segments
+    # load chrom, position
+    chrom = spl[2]
+    if chrom not in genome:
+      sys.stderr.write('Error! Cannot find chromosome %s' % chrom \
+        + ' in genome\n  (make sure input SAM has a header)\n')
+      sys.exit(-1)
+
+    # for memory-saving option, produce output and reset dicts
+    if sortOpt and chrom != refChrom:
+      if meth:
+        printed += printOutput(outfile, refChrom, meth, \
+          minCov, strand)
+      refChrom = chrom
+      if verbose:
+        sys.stderr.write('  chromosome: %s\n' % refChrom)
+      meth = {}
+      peMeth = {}
+
+    # determine if read has multiple segments to same ref
     dup = 0  # 0 -> single-end alignment
              # 1 -> paired-end alignment, not seen before
              # 2 -> paired-end alignment, seen before
-    if flag & 0x1:
+    if flag & 0x1 and spl[6] in [spl[2], '=']:
       if spl[0] in peMeth:
         dup = 2
       else:
@@ -332,31 +363,36 @@ def parseSAM(f, meth, bedRegions, bedSites, linkedMeth, verbose):
         peMeth[spl[0]] = {}
         dup = 1
 
-    # load chrom, position
-    chrom = spl[2]
-    if chrom not in meth:
-      sys.stderr.write('Error! Cannot find chromosome %s' % chrom \
-        + ' in genome\n  (make sure input SAM has a header)\n')
-      sys.exit(-1)
-    pos = getInt(spl[3])
-
     # load CIGAR, methylation string
     cigar = parseCigar(spl[5])
     strXM = getTag(spl[11:], 'XM')  # methylation string from Bismark
 
     # load CpG methylation info
-    count1, count2 = loadMeth(cigar, strXM, chrom, pos, rc, \
-      meth, ins, dup, peMeth.get(spl[0], None), \
-      spl[0], bedRegions, bedSites, linkedMeth)
+    pos = getInt(spl[3])
+    if sortOpt:
+      count1, count2 = loadMeth(cigar, strXM, chrom, pos, rc, \
+        meth, ins, dup, peMeth.get(spl[0], None), \
+        spl[0], bedRegions, bedSites, linkedMeth)
+    else:
+      if chrom not in meth:
+        meth[chrom] = {}
+      count1, count2 = loadMeth(cigar, strXM, chrom, pos, rc, \
+        meth[chrom], ins, dup, peMeth.get(spl[0], None), \
+        spl[0], bedRegions, bedSites, linkedMeth)
     methCount += count1
     count += count2
+
+  # process last chromosome (sortOpt)
+  if sortOpt and meth:
+    printed += printOutput(outfile, refChrom, meth, \
+      minCov, strand)
 
   # warn about novel inserted CpGs
   if verbose and ins:
     sys.stderr.write('Warning! Novel CpG(s) caused by ' \
       + 'insertion(s) -- will be ignored.\n')
 
-  return genome, total, mapped, methCount, count
+  return genome, meth, total, mapped, methCount, count, printed
 
 def main():
   '''
@@ -368,6 +404,8 @@ def main():
   minCov = 1        # min. coverage to report a CpG site
   strand = False    # report strand in output
   bedFile = None    # (optional) BED file for linked meth. data
+  sortOpt = False   # memory-saving option (for sorted SAM)
+  refFile = None    # for ordered chromosome names
   verbose = False   # verbose option
 
   # get command-line args
@@ -382,6 +420,8 @@ def main():
       verbose = True
     elif args[i] == '-s':
       strand = True
+    elif args[i] == '-b':
+      sortOpt = True
     elif i < len(args) - 1:
       if args[i] == '-i':
         infile = openRead(args[i+1])
@@ -389,8 +429,10 @@ def main():
         outfile = openWrite(args[i+1])
       elif args[i] == '-m':
         minCov = max(getInt(args[i+1]), 1)
-      elif args[i] == '-b':
+      elif args[i] == '-n':
         bedFile = args[i+1]
+      elif args[i] == '-e':
+        refFile = args[i+1]
       else:
         sys.stderr.write('Error! Unknown parameter: %s\n' % args[i])
         usage()
@@ -415,10 +457,11 @@ def main():
       sys.stderr.write('BED regions loaded: %d\n' % len(bedRegions))
 
   # process file
-  meth = {}        # dict for methylation counts
   linkedMeth = {}  # dict for linked methylation data
-  genome, total, mapped, methCount, count = parseSAM(infile, meth,
-    bedRegions, bedSites, linkedMeth, verbose)
+  printed = 0  # count of CpG sites printed
+  genome, meth, total, mapped, methCount, count, printed \
+    = parseSAM(infile, bedRegions, bedSites, linkedMeth, sortOpt,
+      outfile, minCov, strand, verbose)
   if infile != sys.stdin:
     infile.close()
 
@@ -435,11 +478,21 @@ def main():
     else:
       sys.stderr.write('    Percent methylated: n/a\n')
 
-  # print output file
-  printed = printOutput(outfile, genome, meth, minCov, strand, \
-    verbose)
+  # print output file(s)
+  if not sortOpt:
+    if verbose:
+      sys.stderr.write('Printing the output file\n')
+    for chrom in genome:
+      if chrom in meth:
+        printed += printOutput(outfile, chrom, meth[chrom], \
+          minCov, strand)
   if outfile != sys.stdout:
     outfile.close()
+  if refFile != None:
+    ref = openWrite(refFile)
+    for chrom in genome:
+      ref.write(chrom + '\n')
+    ref.close()
   if bedFile != None:
     printBed(bedOut, bedRegions, bedSites, linkedMeth)
     bedOut.close()

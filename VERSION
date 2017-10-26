@@ -2,6 +2,15 @@ DMRfinder
 
 Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)
 
+Version 0.3 - Oct. 21, 2017
+  * Memory-saving options in extract_CpG_data.py and
+    combine_CpG_sites.py (both '-b').  With this option,
+    the scripts will analyze one chromosome (reference
+    sequence) at a time, rather than loading/saving all
+    data at once.  The input SAM must be coordinate-sorted
+    for extract_CpG_data.py, and the input files must be in
+    the same sort order for combine_CpG_sites.py.
+
 Version 0.2 - June 13, 2017
   * Clarified sample names designation.
 
