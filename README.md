@@ -73,21 +73,20 @@ Required:
 * [Bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
 * [DSS](http://www.bioconductor.org/packages/release/bioc/html/DSS.html). This package requires [R](https://www.r-project.org/) and [Bioconductor](http://www.bioconductor.org/install/).  DMRfinder scripts have been tested with Rscript version 3.3.1.
 * [Python](https://www.python.org/downloads/).  DMRfinder scripts have been tested with Python versions 2.7.12 and 3.5.2.
-<br><br>
 
 Optional:
-* [SAMtools](http://www.htslib.org/).  If this is installed, the output from Bismark will be converted to BAM; otherwise, the output will be gzip-compressed.  Either output can be analyzed by DMRfinder, as described [below](#extract).
+* [Samtools](http://www.htslib.org/).  If this is installed, the output from Bismark will be converted to BAM; otherwise, the output will be gzip-compressed.  Either output can be analyzed by DMRfinder, as described [below](#extract).
 <br><br>
 
 ## Alignment <a name="align"></a>
 
 To identify the methylation status of genomic cytosines, the high-throughput sequence reads from a MethylC-seq run first must be aligned to a reference genome.  To accomplish this, Bismark [[1](#ref1)] performs an in silico bisulfite conversion of both the reads and the reference genome, and then uses Bowtie2 [[3](#ref3)] to align the reads to the reference.  Reads with a single optimal alignment are further analyzed for methylation status; reference cytosines that were sequenced as thymines are labeled unmethylated, and those that remained as cytosines are labeled methylated.  All methylation calls are made with respect to the forward strand, so for reads that align to the reverse strand of the genome, methylation calls appear on the guanine bases.  Bismark classifies each methylation call based on the sequence context (CpG/CHG/CHH).
 
-There are many command-line options in Bismark, which are described in the [User Guide](https://rawgit.com/FelixKrueger/Bismark/master/Docs/Bismark_User_Guide.html).  Of note, because Bismark relies on the alignments produced by Bowtie2, most of the Bowtie2 command-line options are available with Bismark as well (a full description of the Bowtie2 options can be found in the [manual](http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml).
+There are many command-line options in Bismark, which are described in the [User Guide](https://rawgit.com/FelixKrueger/Bismark/master/Docs/Bismark_User_Guide.html).  Of note, because Bismark relies on the alignments produced by Bowtie2, most of the Bowtie2 command-line options are available with Bismark as well (a full description of the Bowtie2 options can be found in the [manual](http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml)).
 
 Following alignment, some researchers choose to remove reads that may be PCR duplicates.  We do not recommend using Bismark's deduplication script for this purpose; it simply keeps the first read at a given position in the alignment file and eliminates the rest, regardless of the reads' sequences or methylation information.
 
-A [bug](https://github.com/FelixKrueger/Bismark/issues/56) related to ambiguous read alignments crept into version 0.16.0 of Bismark.  Until this is [fixed](https://github.com/FelixKrueger/Bismark/pull/58), we recommend [version 0.15.0](http://github.com/FelixKrueger/Bismark/archive/v0.15.0.tar.gz).
+A [bug](https://github.com/FelixKrueger/Bismark/issues/56) related to ambiguous read alignments crept into version 0.16.0 of Bismark.  Until this is [fixed](https://github.com/FelixKrueger/Bismark/pull/58), we recommend [version 0.15.0](https://github.com/FelixKrueger/Bismark/releases/tag/v0.15.0).
 
 
 ## Extracting methylation counts <a name="extract"></a>
@@ -110,18 +109,18 @@ Usage: python extract_CpG_data.py  [options]  -i <input>  -o <output>
     -b            Memory-saving option (with coordinate-sorted SAM)
     -e <file>     Output file listing ordered chromosomes
 ```
-<br><br>
+---
 
 ```
     -i <input>    SAM alignment file produced by Bismark (must have
                     a header, 'XM' methylation strings, and 'XG'
                     genome designations; can use '-' for stdin)
 ```
-A SAM alignment file produced by Bismark, whether gzip-compressed or not, can be used directly as the `<input>` file.  However, a BAM file must be converted to SAM, or it can be piped in via SAMtools, e.g.:
+A SAM alignment file produced by Bismark, whether gzip-compressed or not, can be used directly as the `<input>` file.  However, a BAM file must be converted to SAM, or it can be piped in via Samtools, e.g.:
 ```
 $ samtools view -h <BAM> | python extract_CpG_data.py  -i -  -o <output>  -v
 ```
-<br><br>
+<br>
 
 ```
     -o <output>   Output file listing counts of methylated and
@@ -154,7 +153,7 @@ Each line of the output lists the following six values for a single CpG, tab-del
     <td>count of unmethylated cytosines</td>
   </tr>
 </table>
-<br><br>
+<br>
 
 ```
     -m <int>      Minimum coverage (methylation counts) to report a
@@ -197,7 +196,7 @@ With this option, the script will process one chromosome at a time, rather than 
 ```
     -e <file>     Output file listing ordered chromosomes
 ```
-When selected, a file will be produced that lists the chromosomes in the correct sort order.  This file can be given to `combine_CpG_sites.py` (`-e` argument also), when using the memory-saving option of that script (`-b`), provided that each analyzed SAM file used the same sort order.
+When selected, a file will be produced that lists the chromosomes in the correct sort order.  This file can be given to `combine_CpG_sites.py` (`-e` argument also), when using the memory-saving option of that script (`-b`), provided that each analyzed SAM file has the same sort order.
 <br><br>
 
 **Note:** this script is specific for producing merged CpG methylation counts.  To get comprehensive methylation information, such as CHG/CHH methylation counts or M-bias plots, one can use the Bismark script `bismark_methylation_extractor`.  To produce a merged output similar to that of `extract_CpG_data.py`, one must also run the Bismark script `coverage2cytosine` (with `--merge_CpG`) on the `bismark_methylation_extractor` output.
@@ -249,7 +248,7 @@ The header line of this tab-delimited output file lists the following: `chr`, `s
 The parameters controlling the three-step process of combining CpG sites into regions are described below.  Illustrative examples are provided in [Appendix A](#appA).
 <br><br>
 
-Step one is to determine the list of valid CpG sites that meet the coverage criteria defined by the two parameters `-r` and `-s`.
+Step one is to determine the list of valid CpG sites that meet the coverage criteria defined by the two parameters `-r` and `-s`:
 ```
     To consider a particular CpG:
       -r <int>    Min. number of counts at a position (def. 3)
@@ -260,7 +259,7 @@ In a given sample, any CpG sites that do not have sufficient counts to meet the 
 Once all the samples' individual CpG sites are determined, the sites without sufficient counts in the number of samples set by `-s` are then invalidated.  The default value of 1 means that only one sample need meet the threshold, so no sites will be invalidated.
 <br><br>
 
-Step two is to perform a modified single-linkage clustering of the CpG sites into genomic regions, as established by the three parameters `-d`, `-c`, and `-x`.
+Step two is to perform a modified single-linkage clustering of the CpG sites into genomic regions, as established by the three parameters `-d`, `-c`, and `-x`:
 ```
     To analyze a region of CpGs:
       -d <int>    Max. distance between CpG sites (def. 100)
@@ -274,7 +273,7 @@ To be reported in the output file, a cluster must have at least the number of Cp
 The `-x` parameter sets the (ideal) maximum length for a region (default 500bp).  This option effectively limits the chaining effect of the single-linkage clustering.  However, this parameter is not strictly enforced; a region longer than the specified length will be split only in such a way that the subclusters meet the `-c` threshold.  If such a split is not possible, the original region will be kept as is.  Note that, following a split, each subcluster must individually meet the `-m` threshold as described below.
 <br><br>
 
-Step three is to perform a final filtering based on the number of counts in each sample individually, using the `-m` parameter.
+Step three is to perform a final filtering based on the number of counts in each sample individually, using the `-m` parameter:
 ```
     To report a particular result:
       -m <int>    Min. total counts in a region (def. 20)
@@ -305,7 +304,7 @@ When specifying the `-b` option (above), this script will attempt to construct t
 
 ## Testing regions for differential methylation <a name="test"></a>
 
-The DMRfinder script `findDMRs.r` conducts pairwise tests of sample groups to find genomic regions that are differentially methylated.  The underlying statistics are based on the beta-binomial hierarchical modeling and Wald test implemented in the Bioconductor package DSS. Illustrative examples of the usage of findDMRs.r are provided in [Appendix B](#appB).
+The DMRfinder script `findDMRs.r` conducts pairwise tests of sample groups to find genomic regions that are differentially methylated.  The underlying statistics are based on the beta-binomial hierarchical modeling and Wald test implemented in the Bioconductor package DSS [[2](#ref2)]. Illustrative examples of the usage of findDMRs.r are provided in [Appendix B](#appB).
 
 ```
 Usage: Rscript findDMRs.r  [options]  -i <input>  -o <output>  \
@@ -330,7 +329,7 @@ Usage: Rscript findDMRs.r  [options]  -i <input>  -o <output>  \
     -t <int>      Report regions with at least <int> comparisons
                     that are significant (def. 1)
 ```
-<br><br>
+<br>
 
 ```
     -i <input>    File listing genomic regions and methylation counts
@@ -341,7 +340,7 @@ This tab-delimited file must have columns labeled `chr`, `start`, `end`, and `Cp
 ```
     -o <output>   Output file listing methylation results
 ```
-This tab-delimited output file lists any regions judged as differentially methylated, based on the specified thresholds (`-c`/`-d`/`-p`/`-q`/`-up`/`-down`/`-t`, see below).  For each region, the same four columns (`chr`, `start`, `end`, `CpG`) will be reported, plus statistical results from DSS (methylation levels, differences, and p-values; see `-k`, `-s` below).
+This tab-delimited output file lists any regions judged as differentially methylated, based on the specified thresholds (`-c`/`-d`/`-p`/`-q`/`-up`/`-down`/`-t`, see below).  For each region, the same four columns (`chr`, `start`, `end`, `CpG`) will be reported, plus statistical results from DSS (methylation levels, differences, and *p*-values; see `-k`, `-s` below).
 <br><br>
 
 ```
@@ -370,11 +369,11 @@ These are the fields from the input file that are included in the output file.  
     -s <str>      Column names of DSS output to include in <output>
                     (comma-separated; def. "mu, diff, pval")
 ```
-These are the fields of the DSS output that are included in the output file.  The default values are `mu` (methylation fraction), `diff` (methylation difference), and `pval` (p-value); columns selected with `-s` will be appended to this list.  Options available with DSS (2.14.0) are the following: `phi`, `diff.se`, `stat`, and `fdr`.  When `-q` is specified (see below), `fdr` is automatically selected.
+These are the fields of the DSS output that are included in the output file.  The default values are `mu` (methylation fraction), `diff` (methylation difference), and `pval` (*p*-value); columns selected with `-s` will be appended to this list.  Options available with DSS (v2.14.0) are the following: `phi`, `diff.se`, `stat`, and `fdr`.  When `-q` is specified (see below), `fdr` is automatically selected.
 
 The methylation fraction is reported for each group individually, as `group:mu`.  For each group-group comparison, slightly different values for `mu` may be reported for a given group; these values are averaged for the output file.  The same is true for other values that are reported for each group (e.g. `phi`).
 
-The methylation difference and p-value are reported for each group-group comparison, as `group1->group2:diff` and `group1->group2:pval`.  Differences are given as group2 with respect to group1, so values below zero represent hypomethylation in group2.  Because of occasional inconsistencies in reported methylation levels (as described in the previous paragraph), a given `group1->group2:diff` might not exactly equal `group2:mu` minus `group1:mu`.
+The methylation difference and *p*-value are reported for each group-group comparison, as `group1->group2:diff` and `group1->group2:pval`.  Differences are given as group2 with respect to group1, so values below zero represent hypomethylation in group2.  Because of occasional inconsistencies in reported methylation levels (as described in the previous paragraph), a given `group1->group2:diff` might not exactly equal `group2:mu` minus `group1:mu`.
 <br><br>
 
 ```
@@ -393,13 +392,13 @@ This is the minimum methylation difference that is considered significant.  The 
 ```
     -p <float>    Max. p-value ([0-1]; def. 0.05)
 ```
-This is the maximum p-value that is considered significant.  The default value of 0.05 means that a group-group comparison must have a p-value at or below this threshold.  Specifying `-p 1` means that no regions will be rejected on this basis, except for those listed as `NA`.
+This is the maximum *p*-value that is considered significant.  The default value of 0.05 means that a group-group comparison must have a *p*-value at or below this threshold.  Specifying `-p 1` means that no regions will be rejected on this basis, except for those listed as `NA`.
 <br><br>
 
 ```
     -q <float>    Max. q-value ([0-1]; def. 1)
 ```
-This is the maximum q-value (false discovery rate adjusted p-value) that is considered significant.  The default value of 1 means that no regions will be rejected on this basis.  When this option is used, `fdr` is automatically added as an output column for each group-group comparison.
+This is the maximum *q*-value (false discovery rate adjusted *p*-value) that is considered significant.  The default value of 1 means that no regions will be rejected on this basis.  When this option is used, `fdr` is automatically added as an output column for each group-group comparison.
 <br><br>
 
 ```
@@ -430,15 +429,15 @@ The following options work for all scripts in DMRfinder:
     -v            Run the script in verbose mode (printing various
                     updates and statistics to stdout/stderr)
 ```
-<br><br>
+<br>
 
 ### References <a name="refs"></a>
 
-[1]  Krueger F, Andrews SR. Bismark: a flexible aligner and methylation caller for Bisulfite-Seq applications. Bioinformatics. 2011 Jun 1;27(11):1571-2. <a name="ref1"></a>
+<a name="ref1"></a> [1]  Krueger F, Andrews SR. Bismark: a flexible aligner and methylation caller for Bisulfite-Seq applications. Bioinformatics. 2011 Jun 1;27(11):1571-2.
 
-[2]  Feng H, Conneely KN, Wu H. A Bayesian hierarchical model to detect differentially methylated loci from single nucleotide resolution sequencing data. Nucleic Acids Res. 2014 Apr;42(8):e69. <a name="ref2"></a>
+<a name="ref2"></a> [2]  Feng H, Conneely KN, Wu H. A Bayesian hierarchical model to detect differentially methylated loci from single nucleotide resolution sequencing data. Nucleic Acids Res. 2014 Apr;42(8):e69.
 
-[3]  Langmead B, Salzberg SL. Fast gapped-read alignment with Bowtie 2. Nat Methods. 2012 Mar 4;9(4):357-9. <a name="ref3"></a>
+<a name="ref3"></a> [3]  Langmead B, Salzberg SL. Fast gapped-read alignment with Bowtie 2. Nat Methods. 2012 Mar 4;9(4):357-9.
 <br><br>
 
 ### Contact <a name="contact"></a>
@@ -452,17 +451,17 @@ The software was created at Rutgers University, under the support of NIH grant 1
 
 In this section, we will demonstrate the three-step process for producing genomic regions as implemented in `combine_CpG_sites.py`.  We will use a simplified set of methylation counts for two samples, C1 and C2, as produced by `extract_CpG_data.py` (for simplification, the third and fourth columns are not shown):
 ```
-      _C1.cov_                  _C2.cov_      
-chrZ   100   0   1        chrZ   100   1   2
-chrZ   120   1   2        chrZ   120   2   3
-chrZ   200   0   4        chrZ   200   1   5
-chrZ   300   3   3        chrZ   300   0   2
-chrZ   401   2   6        chrZ   401   3   3
-chrZ   450   3   5        chrZ   450   4   5
-chrZ   600   5   2        chrZ   600   6   3
-chrZ   625   4   2        chrZ   625   8   0
-chrZ   650   5   1        chrZ   650   7   1
-chrZ   700   3   2        chrZ   700   3   4
+<u>     C1.cov       </u>       <u>     C2.cov       </u>
+chrZ   100   0   1           chrZ   100   1   2
+chrZ   120   1   2           chrZ   120   2   3
+chrZ   200   0   4           chrZ   200   1   5
+chrZ   300   3   3           chrZ   300   0   2
+chrZ   401   2   6           chrZ   401   3   3
+chrZ   450   3   5           chrZ   450   4   5
+chrZ   600   5   2           chrZ   600   6   3
+chrZ   625   4   2           chrZ   625   8   0
+chrZ   650   5   1           chrZ   650   7   1
+chrZ   700   3   2           chrZ   700   3   4
 ```
 
 These files were analyzed using the following command:
@@ -484,30 +483,30 @@ chr   start  end   CpG   C1-N   C1-X   C2-N   C2-X
 chrZ   600   700    4     24     17     32     24
 ```
 
-Results produced by `combine_CpG_sites.py` using parameters other than the defaults are shown below.
+Here are some results produced by `combine_CpG_sites.py` using parameters other than the defaults.
 
-`-m 15`
+`-m 15`:
 ```
 chr   start  end   CpG   C1-N   C1-X   C2-N   C2-X
 chrZ   100   300    4     NA     NA     16      4
 chrZ   600   700    4     24     17     32     24
 ```
 
-`-m 10`
+`-m 10`:
 ```
 chr   start  end   CpG   C1-N   C1-X   C2-N   C2-X
 chrZ   120   300    4     14      4     16      4
 chrZ   600   700    4     24     17     32     24
 ```
 
-`-r 2  -s 2  -m 10`
+`-r 2  -s 2  -m 10`:
 ```
 chr   start  end   CpG   C1-N   C1-X   C2-N   C2-X
 chrZ   120   300    3     13      4     13      3
 chrZ   600   700    4     24     17     32     24
 ```
 
-`-c 2  -x 50  -m 10`
+`-c 2  -x 50  -m 10`:
 ```
 chr   start  end   CpG   C1-N   C1-X   C2-N   C2-X
 chrZ   200   300    2     10      3     NA     NA
@@ -515,7 +514,7 @@ chrZ   401   450    2     16      5     15      7
 chrZ   600   625    2     13      9     17     14
 chrZ   650   700    2     11      8     15     10
 ```
-<br><br>
+<br>
 
 
 ## Appendix B. Illustrative examples with `findDMRs.r` <a name="appB"></a>
@@ -538,7 +537,7 @@ chr   start  end  CpG   Ctrl:mu   Exp:mu  Ctrl->Exp:diff  Ctrl->Exp:pval
 chrZ   600   700   4   0.727412  0.493122   -0.2342893      0.0302165
 ```
 
-This shows that, for the genomic region of `chrZ:600-700`, the methylation levels (`mu`) in the Control and Experimental groups were 72.7% and 49.3%, respectively.  Therefore, the difference of -23.4% easily met the 10% default threshold, and the p-value of 0.03 was below the default value of 0.05.  The other region, `chrZ:100-300`, was not reported in the output because it failed to meet one or both thresholds.
+This shows that, for the genomic region of `chrZ:600-700`, the methylation levels (`mu`) in the Control and Experimental groups were 72.7% and 49.3%, respectively.  Therefore, the difference of -23.4% easily met the 10% default threshold, and the *p*-value of 0.03 was below the default value of 0.05.  The other region, `chrZ:100-300`, was not reported in the output because it failed to meet one or both thresholds.
 
 To get the `mu`, `diff`, and `pval` results for every region (except those whose results are just `NA`), we can run `findDMRs.r` with `-d 0  -p 1`:
 ```
@@ -547,5 +546,5 @@ chrZ   100   300   4   0.273988  0.362521    0.0885337      0.4701449
 chrZ   600   700   4   0.727412  0.493122   -0.2342893      0.0302165
 ```
 
-From this we can see that the first genomic region (`chrZ:100-300`) had a methylation difference less than the 10% threshold, and a large p-value as well.
+From this we can see that the first genomic region (`chrZ:100-300`) had a methylation difference less than the 10% threshold, and a large *p*-value as well.
 
