@@ -229,7 +229,7 @@ Usage: python combine_CpG_sites.py  [options]  -o <output>  [<input>]+
       -e <file>   File listing ordered chromosome names (used
                     only with -b option)
 ```
-<br><br>
+---
 
 ```
     [<input>]+    One or more files, each listing methylation counts
@@ -329,7 +329,7 @@ Usage: Rscript findDMRs.r  [options]  -i <input>  -o <output>  \
     -t <int>      Report regions with at least <int> comparisons
                     that are significant (def. 1)
 ```
-<br>
+---
 
 ```
     -i <input>    File listing genomic regions and methylation counts
@@ -398,7 +398,7 @@ This is the maximum *p*-value that is considered significant.  The default value
 ```
     -q <float>    Max. q-value ([0-1]; def. 1)
 ```
-This is the maximum *q*-value (false discovery rate adjusted *p*-value) that is considered significant.  The default value of 1 means that no regions will be rejected on this basis.  When this option is used, `fdr` is automatically added as an output column for each group-group comparison.
+This is the maximum *q*-value (false discovery rate-adjusted *p*-value) that is considered significant.  The default value of 1 means that no regions will be rejected on this basis.  When this option is used, `fdr` is automatically added as an output column for each group-group comparison.
 <br><br>
 
 ```
@@ -429,7 +429,7 @@ The following options work for all scripts in DMRfinder:
     -v            Run the script in verbose mode (printing various
                     updates and statistics to stdout/stderr)
 ```
-<br>
+
 
 ### References <a name="refs"></a>
 
@@ -451,7 +451,7 @@ The software was created at Rutgers University, under the support of NIH grant 1
 
 In this section, we will demonstrate the three-step process for producing genomic regions as implemented in `combine_CpG_sites.py`.  We will use a simplified set of methylation counts for two samples, C1 and C2, as produced by `extract_CpG_data.py` (for simplification, the third and fourth columns are not shown):
 ```
-<u>     C1.cov       </u>       <u>     C2.cov       </u>
+      C1.cov                       C2.cov
 chrZ   100   0   1           chrZ   100   1   2
 chrZ   120   1   2           chrZ   120   2   3
 chrZ   200   0   4           chrZ   200   1   5
@@ -533,17 +533,17 @@ $ Rscript findDMRs.r  -i input.csv  -o output.csv  C1,C2  E1,E2  -n Ctrl,Exp
 
 Here is the resulting output:
 ```
-chr   start  end  CpG   Ctrl:mu   Exp:mu  Ctrl->Exp:diff  Ctrl->Exp:pval
-chrZ   600   700   4   0.727412  0.493122   -0.2342893      0.0302165
+chr   start  end  CpG   Ctrl:mu   Exp:mu   Ctrl->Exp:diff  Ctrl->Exp:pval
+chrZ   600   700   4   0.727412  0.493122    -0.2342893      0.0302165
 ```
 
 This shows that, for the genomic region of `chrZ:600-700`, the methylation levels (`mu`) in the Control and Experimental groups were 72.7% and 49.3%, respectively.  Therefore, the difference of -23.4% easily met the 10% default threshold, and the *p*-value of 0.03 was below the default value of 0.05.  The other region, `chrZ:100-300`, was not reported in the output because it failed to meet one or both thresholds.
 
 To get the `mu`, `diff`, and `pval` results for every region (except those whose results are just `NA`), we can run `findDMRs.r` with `-d 0  -p 1`:
 ```
-chr   start  end  CpG   Ctrl:mu   Exp:mu  Ctrl->Exp:diff  Ctrl->Exp:pval
-chrZ   100   300   4   0.273988  0.362521    0.0885337      0.4701449
-chrZ   600   700   4   0.727412  0.493122   -0.2342893      0.0302165
+chr   start  end  CpG   Ctrl:mu   Exp:mu   Ctrl->Exp:diff  Ctrl->Exp:pval
+chrZ   100   300   4   0.273988  0.362521     0.0885337      0.4701449
+chrZ   600   700   4   0.727412  0.493122    -0.2342893      0.0302165
 ```
 
 From this we can see that the first genomic region (`chrZ:100-300`) had a methylation difference less than the 10% threshold, and a large *p*-value as well.
