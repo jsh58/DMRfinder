@@ -71,7 +71,7 @@ Required:
 * [DMRfinder](https://github.com/jsh58/DMRfinder)
 * [Bismark](http://www.bioinformatics.babraham.ac.uk/projects/bismark/)
 * [Bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
-* [DSS](http://www.bioconductor.org/packages/release/bioc/html/DSS.html). This package requires [R](https://www.r-project.org/) and [Bioconductor](http://www.bioconductor.org/install/).  DMRfinder scripts have been tested with Rscript version 3.3.1.
+* [DSS](http://www.bioconductor.org/packages/release/bioc/html/DSS.html). This package requires [R](https://www.r-project.org/) and [Bioconductor](http://www.bioconductor.org/install/).  DMRfinder scripts have been tested with Rscript version 3.3.1 and DSS version 2.14.0.
 * [Python](https://www.python.org/downloads/).  DMRfinder scripts have been tested with Python versions 2.7.12 and 3.5.2.
 
 Optional:
@@ -87,7 +87,7 @@ There are many command-line options in Bismark, which are described in the [User
 Following alignment, some researchers choose to remove reads that may be PCR duplicates.  We do not recommend using Bismark's deduplication script for this purpose; it simply keeps the first read at a given position in the alignment file and eliminates the rest, regardless of the reads' sequences or methylation information.
 
 A [bug](https://github.com/FelixKrueger/Bismark/issues/56) related to ambiguous read alignments crept into version 0.16.0 of Bismark.  Until this is [fixed](https://github.com/FelixKrueger/Bismark/pull/58), we recommend [version 0.15.0](https://github.com/FelixKrueger/Bismark/releases/tag/v0.15.0).
-
+<br><br>
 
 ## Extracting methylation counts <a name="extract"></a>
 
