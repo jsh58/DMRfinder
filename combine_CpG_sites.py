@@ -10,7 +10,7 @@ import sys
 import os.path
 import gzip
 import math
-version = '0.3'
+version = '0.4_dev'
 copyright = 'Copyright (C) 2016 John M. Gaspar (jsh58@wildcats.unh.edu)'
 
 def printVersion():
@@ -37,6 +37,8 @@ def usage():
       -m <int>    Min. total counts in a region (def. 20)
     Other:
       -f          Report methylation fraction for each sample
+      -y <file>   Report clusters of valid CpG sites;
+                    if <file> exists, use these clusters
       -b          Memory-saving option (may take longer)
       -e <file>   File listing ordered chromosome names (comma-
                     separated; used only with -b option)
@@ -104,7 +106,7 @@ def openFiles(infiles):
   return files, samples
 
 def splitRegion(chrom, reg, count, minCpG, minReg, \
-    maxLen, samples, fraction, fOut):
+    maxLen, samples, fraction, fOut, fClus):
   '''
   Split a CpG region that is too large and process
     each subregion via processRegion().
@@ -141,13 +143,14 @@ def splitRegion(chrom, reg, count, minCpG, minReg, \
   for end in ends:
     # pass to processRegion()
     total += processRegion(chrom, reg[start:end], count, \
-      minCpG, minReg, float('inf'), samples, fraction, fOut)
+      minCpG, minReg, float('inf'), samples, fraction, \
+      fOut, fClus)
     start = end
 
   return total
 
 def processRegion(chrom, reg, count, minCpG, minReg, \
-    maxLen, samples, fraction, fOut):
+    maxLen, samples, fraction, fOut, fClus):
   '''
   Produce output for a given region of CpGs: a line
     containing chromosome name, start and end
@@ -168,7 +171,7 @@ def processRegion(chrom, reg, count, minCpG, minReg, \
   # split region larger than maxLen
   if reg[-1] - reg[0] > maxLen:
     return splitRegion(chrom, reg, count, minCpG, minReg, \
-      maxLen, samples, fraction, fOut)
+      maxLen, samples, fraction, fOut, fClus)
 
   flag = False  # boolean for printing line
   res = '%s\t%d\t%d\t%d' % (chrom, reg[0], reg[-1], len(reg))
@@ -194,11 +197,17 @@ def processRegion(chrom, reg, count, minCpG, minReg, \
       flag = True
   if flag:
     fOut.write(res + '\n')
+    # record CpG sites in cluster
+    if fClus:
+      fClus.write(chrom + '\t' + str(reg[0]))
+      for r in reg[1:]:
+        fClus.write(',' + str(r))
+      fClus.write('\n')
     return 1
   return 0
 
 def combineRegions(count, total, chrom, minSamples, maxDist, \
-    minCpG, minReg, maxLen, samples, fraction, fOut):
+    minCpG, minReg, maxLen, samples, fraction, fOut, fClus):
   '''
   Combine data from CpG positions that are close to each
     other (a modified single-linkage clustering, with
@@ -216,13 +225,13 @@ def combineRegions(count, total, chrom, minSamples, maxDist, \
       #   process previous genomic region
       if pos3 and loc - pos3 > maxDist:
         printed += processRegion(chrom, reg, count, minCpG, \
-          minReg, maxLen, samples, fraction, fOut)
+          minReg, maxLen, samples, fraction, fOut, fClus)
         reg = []  # reset list
       reg.append(loc)
       pos3 = loc
   # process last genomic region for this chromosome
   printed += processRegion(chrom, reg, count, minCpG, \
-    minReg, maxLen, samples, fraction, fOut)
+    minReg, maxLen, samples, fraction, fOut, fClus)
   return printed
 
 def writeHeader(fOut, samples, fraction):
@@ -267,7 +276,7 @@ def loadCounts(f, minReads, count, total, order, sample):
 
 def processFiles(infiles, files, samples, minReads,
     minSamples, maxDist, minCpG, minReg, maxLen, fraction,
-    fOut, verbose):
+    fOut, fClus, verbose):
   '''
   Load all methylation counts from the inputs,
     cluster, and output results.
@@ -290,7 +299,7 @@ def processFiles(infiles, files, samples, minReads,
   for chrom in order:
     printed += combineRegions(count[chrom], total[chrom], \
       chrom, minSamples, maxDist, minCpG, minReg, maxLen, \
-      samples, fraction, fOut)
+      samples, fraction, fOut, fClus)
   return printed
 
 def loadChrOrder(infiles, files):
@@ -392,7 +401,7 @@ def loadChromCounts(files, samples, lines, refChrom,
 
 def processChrom(infiles, files, samples, minReads,
     minSamples, maxDist, minCpG, minReg, maxLen,
-    fraction, fOut, chrOrder, verbose):
+    fraction, fOut, chrOrder, fClus, verbose):
   '''
   Process the input files, one chromosome at a time.
   '''
@@ -425,7 +434,7 @@ def processChrom(infiles, files, samples, minReads,
     # cluster and print output
     printed += combineRegions(count, total, refChrom, \
       minSamples, maxDist, minCpG, minReg, maxLen, \
-      samples, fraction, fOut)
+      samples, fraction, fOut, fClus)
 
   # check for unprocessed records
   unProc = False
@@ -454,6 +463,7 @@ def main():
   minReg = 20         # min. reads in a sample for a region
   maxLen = 500        # max. length of a combined region
   fraction = False    # report methylated fractions option
+  clusFile = None     # file listing clusters of valid CpGs
   byChrom = False     # process by chromosome (memory saving)
   chrOrderFile = None # file listing order of chromosomes to process
   verbose = False     # verbose option
@@ -489,6 +499,8 @@ def main():
         chrOrderFile = args[i+1]
       elif args[i] == '-o':
         outfile = args[i+1]
+      elif args[i] == '-y':
+        clusFile = args[i+1]
       else:
         sys.stderr.write('Error! Unknown parameter: %s\n' % args[i])
         usage()
@@ -512,6 +524,13 @@ def main():
   files, samples = openFiles(infiles)
   writeHeader(fOut, samples, fraction)
 
+  fClus = None
+  if clusFile:
+    if os.path.isfile(clusFile):
+      pass
+    else:
+      fClus = openWrite(clusFile)
+
   # run program
   if byChrom:
     chrOrder = []   # order of chromosomes to process
@@ -524,13 +543,15 @@ def main():
         f.close()
     printed = processChrom(infiles, files, samples, minReads, \
       minSamples, maxDist, minCpG, minReg, maxLen, fraction, \
-      fOut, chrOrder, verbose)
+      fOut, chrOrder, fClus, verbose)
   else:
     printed = processFiles(infiles, files, samples, minReads, \
       minSamples, maxDist, minCpG, minReg, maxLen, fraction, \
-      fOut, verbose)
+      fOut, fClus, verbose)
 
   # finish up
+  if fClus and fClus != sys.stdout:
+    fClus.close()
   if fOut != sys.stdout:
     fOut.close()
   if verbose:
