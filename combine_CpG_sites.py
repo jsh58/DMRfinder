@@ -302,9 +302,205 @@ def processFiles(infiles, files, samples, minReads,
       samples, fraction, fOut, fClus)
   return printed
 
+def loadChromCounts(files, samples, lines, refChrom,
+    minReads, count, total):
+  '''
+  Load the methylated/unmethylated counts for a
+    chromosome from all the input files.
+  '''
+  # load counts from each file
+  for i in range(len(files)):
+    if not lines[i]: continue
+    try:
+      chrom, pos, end, pct, meth, unmeth \
+        = lines[i].rstrip().split('\t')
+    except ValueError:
+      sys.stderr.write('Error! Poorly formatted record:' \
+        + '\n%s' % lines[i])
+      sys.exit(-1)
+    if chrom != refChrom: continue
+
+    # load counts as long as chrom matches
+    while chrom == refChrom:
+      meth = getInt(meth)
+      unmeth = getInt(unmeth)
+
+      if pos not in count:
+        count[pos] = {}
+      count[pos][samples[i]] = [meth, unmeth]
+      # save to 'total' dict. only if sufficient coverage
+      if meth + unmeth >= minReads:
+        total[pos] = total.get(pos, 0) + 1
+
+      line = files[i].readline()
+      if not line:
+        break
+      try:
+        chrom, pos, end, pct, meth, unmeth \
+          = line.rstrip().split('\t')
+      except ValueError:
+        sys.stderr.write('Error! Poorly formatted record:' \
+          + '\n%s' % line)
+        sys.exit(-1)
+
+    # reset next line
+    lines[i] = line
+
+def processChrom(infiles, files, samples, minReads,
+    minSamples, maxDist, minCpG, minReg, maxLen,
+    fraction, fOut, chrOrder, fClus, verbose):
+  '''
+  Process the input files, one chromosome at a time.
+  '''
+  # load first lines of files
+  lines = []
+  for f in files:
+    lines.append(f.readline())
+
+  # process each chromosome separately
+  if verbose:
+    sys.stderr.write('Loading methylation information,\n')
+    sys.stderr.write('  combining regions, and producing output\n')
+  printed = 0
+  for refChrom in chrOrder:
+    if verbose:
+      sys.stderr.write('  chromosome: %s\n' % refChrom)
+
+    # load counts from each file
+    count = {}    # for methylated, unmethylated counts
+    total = {}    # for number of samples with min. coverage
+    loadChromCounts(files, samples, lines, refChrom, \
+      minReads, count, total)
+
+    # cluster and print output
+    printed += combineRegions(count, total, refChrom, \
+      minSamples, maxDist, minCpG, minReg, maxLen, \
+      samples, fraction, fOut, fClus)
+
+  # check for unprocessed records
+  unProc = False
+  for i in range(len(lines)):
+    if lines[i]:
+      if not unProc:
+        sys.stderr.write('Error! Unprocessed records in inputs:\n')
+      sys.stderr.write('File %s:\n%s' % (infiles[i], lines[i]))
+      unProc = True
+  if unProc:
+    sys.exit(-1)
+
+  return printed
+
+def loadClusters(clusFile, verbose):
+  '''
+  Load info for all clusters from external file.
+  '''
+  if verbose:
+    sys.stderr.write('Loading cluster information\n')
+  f = openRead(clusFile)
+  total = sites = 0
+  idx = dict()
+  clus = list()
+  for line in f:
+    spl = line.rstrip().split('\t')
+    if len(spl) < 2:
+      sys.stderr.write('Error! Poorly formatted cluster record:' \
+        + '\n%s' % line)
+      sys.exit(-1)
+    pos = spl[1].split(',')
+
+    # create dict and point sites to it
+    d = dict()
+    for p in pos:
+      idx[spl[0] + ' ' + p] = total
+      sites += 1
+    clus.append('\t'.join([spl[0], pos[0], pos[-1], str(len(pos))]))
+    total += 1
+
+  if f != sys.stdin:
+    f.close()
+  if verbose:
+    sys.stderr.write('  Clusters loaded: %d\n' % total)
+    sys.stderr.write('  CpG sites: %d\n' % sites)
+  return clus, idx
+
+def loadCountsClus(f, count, idx, sample):
+  '''
+  Load the methylated/unmethylated counts for a file.
+  '''
+  # load counts from file
+  for line in f:
+    try:
+      chrom, pos, end, pct, meth, unmeth \
+        = line.rstrip().split('\t')
+    except ValueError:
+      sys.stderr.write('Error! Poorly formatted record:\n%s' % line)
+      sys.exit(-1)
+
+    # save counts
+    k = chrom + ' ' + pos
+    if k in idx:
+      if sample in count[idx[k]]:
+        count[idx[k]][sample][0] += getInt(meth)
+        count[idx[k]][sample][1] += getInt(unmeth)
+      else:
+        count[idx[k]][sample] = [getInt(meth), getInt(unmeth)]
+
+def printClus(infiles, files, samples, minReg,
+    fraction, fOut, count, clus):
+  '''
+  Print counts for each cluster.
+  '''
+  for i in xrange(len(clus)):
+    res = clus[i]
+    for sample in samples:
+      if sample in count[i]:
+        meth = count[i][sample][0]
+        unmeth = count[i][sample][1]
+        if meth + unmeth < minReg:
+          # less than minimum number of counts
+          res += '\tNA'
+          if not fraction:
+            res += '\tNA'
+        else:
+          if fraction:
+            # compute methylated fraction
+            res += '\t%f' % (meth / float(meth + unmeth))
+          else:
+            res += '\t%d\t%d' % (meth + unmeth, meth)  # actual counts
+      else:
+        res += '\tNA'
+        if not fraction:
+          res += '\tNA'
+    fOut.write(res + '\n')
+
+def processFilesClus(infiles, files, samples, minReg,
+    fraction, fOut, clusFile, verbose):
+  '''
+  Control processing of files when given file of
+    cluster information.
+  '''
+  # load cluster information from file
+  clus, idx = loadClusters(clusFile, verbose)
+
+  # load methylation information for each sample
+  count = [{} for i in xrange(len(clus))]
+  if verbose:
+    sys.stderr.write('Loading methylation information\n')
+  for i in range(len(infiles)):
+    if verbose:
+      sys.stderr.write('  file: %s\n' % infiles[i])
+    loadCountsClus(files[i], count, idx, samples[i])
+
+  # print output for each cluster
+  if verbose:
+    sys.stderr.write('Printing output\n')
+  printClus(infiles, files, samples, minReg, fraction, \
+    fOut, count, clus)
+
 def loadChrOrder(infiles, files):
   '''
-  Return a list of ordered chromosome names.
+  Return a list of ordered chromosome names,
+    constructed from input count files.
   '''
   # load chroms from input files
   order = [[] for i in range(len(files))]
@@ -314,8 +510,8 @@ def loadChrOrder(infiles, files):
       chrom = line.split('\t')[0]
       if chrom != refChrom:
         if chrom in order[i]:
-          sys.stderr.write('Error! Unsorted input file:' + \
-            ' %s\n' % infiles[i])
+          sys.stderr.write('Error! Unsorted input file:' \
+            + ' %s\n' % infiles[i])
           sys.exit(-1)
         order[i].append(chrom)
         refChrom = chrom
@@ -355,99 +551,26 @@ def loadChrOrder(infiles, files):
 
   return chrOrder
 
-def loadChromCounts(files, samples, lines, refChrom,
-    minReads, count, total):
+def saveChrOrder(chrOrderFile, infiles, files, verbose):
   '''
-  Load the methylated/unmethylated counts for a
-    chromosome from all the input files.
+  Determine order of chromosomes to analyze.
   '''
-  # load counts from each file
-  for i in range(len(files)):
-    if not lines[i]: continue
-    try:
-      chrom, pos, end, pct, meth, unmeth \
-        = lines[i].rstrip().split('\t')
-    except ValueError:
-      sys.stderr.write('Error! Poorly formatted record:' + \
-        '\n%s' % lines[i])
-      sys.exit(-1)
-    if chrom != refChrom: continue
+  chrOrder = []  # order of chromosomes to process
+  if chrOrderFile != None:
+    # load chromosome order from given file
+    f = openRead(chrOrderFile)
+    for line in f:
+      chrOrder.extend(line.rstrip().split(','))
+    if f != sys.stdin:
+      f.close()
 
-    # load counts as long as chrom matches
-    while chrom == refChrom:
-      meth = getInt(meth)
-      unmeth = getInt(unmeth)
-
-      if pos not in count:
-        count[pos] = {}
-      count[pos][samples[i]] = [meth, unmeth]
-      # save to 'total' dict. only if sufficient coverage
-      if meth + unmeth >= minReads:
-        total[pos] = total.get(pos, 0) + 1
-
-      line = files[i].readline()
-      if not line:
-        break
-      try:
-        chrom, pos, end, pct, meth, unmeth \
-          = line.rstrip().split('\t')
-      except ValueError:
-        sys.stderr.write('Error! Poorly formatted record:' + \
-          '\n%s' % line)
-        sys.exit(-1)
-
-    # reset next line
-    lines[i] = line
-
-def processChrom(infiles, files, samples, minReads,
-    minSamples, maxDist, minCpG, minReg, maxLen,
-    fraction, fOut, chrOrder, fClus, verbose):
-  '''
-  Process the input files, one chromosome at a time.
-  '''
-  # load ordered chromosome names (if not specified)
-  if not chrOrder:
+  else:
+    # need to construct order from input count files
     if verbose:
-      sys.stderr.write('Loading chromosome order\n')
+      sys.stderr.write('Constructing chromosome order\n')
     chrOrder = loadChrOrder(infiles, files)
 
-  # load first lines of files
-  lines = []
-  for f in files:
-    lines.append(f.readline())
-
-  # process each chromosome separately
-  if verbose:
-    sys.stderr.write('Loading methylation information,\n')
-    sys.stderr.write('  combining regions, and producing output\n')
-  printed = 0
-  for refChrom in chrOrder:
-    if verbose:
-      sys.stderr.write('  chromosome: %s\n' % refChrom)
-
-    # load counts from each file
-    count = {}    # for methylated, unmethylated counts
-    total = {}    # for number of samples with min. coverage
-    loadChromCounts(files, samples, lines, refChrom,
-      minReads, count, total)
-
-    # cluster and print output
-    printed += combineRegions(count, total, refChrom, \
-      minSamples, maxDist, minCpG, minReg, maxLen, \
-      samples, fraction, fOut, fClus)
-
-  # check for unprocessed records
-  unProc = False
-  for i in range(len(lines)):
-    if lines[i]:
-      if not unProc:
-        sys.stderr.write('Error! Unprocessed records in inputs:\n')
-      sys.stderr.write('File %s:\n%s' % (infiles[i], lines[i]))
-      unProc = True
-  if unProc:
-    sys.exit(-1)
-
-  return printed
+  return chrOrder
 
 def main():
   '''
@@ -524,23 +647,26 @@ def main():
   files, samples = openFiles(infiles)
   writeHeader(fOut, samples, fraction)
 
-  fClus = None
-  if clusFile:
-    if os.path.isfile(clusFile):
-      pass
+  # save chromosome order
+  if byChrom:
+    chrOrder = saveChrOrder(chrOrderFile, infiles, files, verbose)
+
+  # if provided clusters, process directly
+  if clusFile and os.path.isfile(clusFile):
+    # pre-clustered sites
+    if byChrom:
+      printed = processChromClus(infiles, files, samples, \
+        minReg, fraction, fOut, chrOrder, clusFile, verbose)
     else:
-      fClus = openWrite(clusFile)
+      printed = processFilesClus(infiles, files, samples, \
+        minReg, fraction, fOut, clusFile, verbose)
+    return
 
   # run program
+  fClus = None
+  if clusFile:
+    fClus = openWrite(clusFile)
   if byChrom:
-    chrOrder = []   # order of chromosomes to process
-    if chrOrderFile != None:
-      # load chromosome order from given file
-      f = openRead(chrOrderFile)
-      for line in f:
-        chrOrder.extend(line.rstrip().split(','))
-      if f != sys.stdin:
-        f.close()
     printed = processChrom(infiles, files, samples, minReads, \
       minSamples, maxDist, minCpG, minReg, maxLen, fraction, \
       fOut, chrOrder, fClus, verbose)
