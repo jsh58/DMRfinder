@@ -450,6 +450,7 @@ def printClus(infiles, files, samples, minReg,
   '''
   Print counts for each cluster.
   '''
+  printed = 0
   for i in xrange(len(clus)):
     res = clus[i]
     for sample in samples:
@@ -472,6 +473,8 @@ def printClus(infiles, files, samples, minReg,
         if not fraction:
           res += '\tNA'
     fOut.write(res + '\n')
+    printed += 1
+  return printed
 
 def processFilesClus(infiles, files, samples, minReg,
     fraction, fOut, clusFile, verbose):
@@ -494,8 +497,8 @@ def processFilesClus(infiles, files, samples, minReg,
   # print output for each cluster
   if verbose:
     sys.stderr.write('Printing output\n')
-  printClus(infiles, files, samples, minReg, fraction, \
-    fOut, count, clus)
+  return printClus(infiles, files, samples, minReg, \
+    fraction, fOut, count, clus)
 
 def loadChrOrder(infiles, files):
   '''
@@ -660,24 +663,28 @@ def main():
     else:
       printed = processFilesClus(infiles, files, samples, \
         minReg, fraction, fOut, clusFile, verbose)
-    return
 
-  # run program
-  fClus = None
-  if clusFile:
-    fClus = openWrite(clusFile)
-  if byChrom:
-    printed = processChrom(infiles, files, samples, minReads, \
-      minSamples, maxDist, minCpG, minReg, maxLen, fraction, \
-      fOut, chrOrder, fClus, verbose)
+  # default analysis: cluster samples and produce output
   else:
-    printed = processFiles(infiles, files, samples, minReads, \
-      minSamples, maxDist, minCpG, minReg, maxLen, fraction, \
-      fOut, fClus, verbose)
+    # open output file for cluster info
+    fClus = None
+    if clusFile:
+      fClus = openWrite(clusFile)
+
+    # cluster and produce output
+    if byChrom:
+      printed = processChrom(infiles, files, samples, minReads, \
+        minSamples, maxDist, minCpG, minReg, maxLen, fraction, \
+        fOut, chrOrder, fClus, verbose)
+    else:
+      printed = processFiles(infiles, files, samples, minReads, \
+        minSamples, maxDist, minCpG, minReg, maxLen, fraction, \
+        fOut, fClus, verbose)
+
+    if fClus and fClus != sys.stdout:
+      fClus.close()
 
   # finish up
-  if fClus and fClus != sys.stdout:
-    fClus.close()
   if fOut != sys.stdout:
     fOut.close()
   if verbose:
