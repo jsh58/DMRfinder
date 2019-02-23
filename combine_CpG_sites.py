@@ -586,12 +586,11 @@ def processFilesClus(infiles, files, samples, minReg, \
   return printClus(infiles, files, samples, minReg, \
     fraction, fOut, count, clus)
 
-def loadSites(f, line, idx, clus):
+def loadSites(f, line, refChrom, idx, clus):
   '''
   Load cluster information for one chrom.
   '''
-  total = count = 0
-  refChrom = line.split('\t')[0]
+  total = cpg = 0
   while line:
     spl = line.split('\t')
     if len(spl) < 2:
@@ -605,14 +604,14 @@ def loadSites(f, line, idx, clus):
     # save sites and cluster header
     for p in pos:
       idx[spl[0] + ' ' + p] = total
-      count += 1
+      cpg += 1
     clus.append('\t'.join([spl[0], pos[0], pos[-1], \
       str(len(pos))]))
     total += 1
 
     line = f.readline().rstrip()
 
-  return refChrom, line, count
+  return line, cpg
 
 def loadCountsClusChrom(files, samples, lines, refChrom, \
       count, idx):
@@ -658,7 +657,7 @@ def loadCountsClusChrom(files, samples, lines, refChrom, \
     lines[i] = line
 
 def processChromClus(infiles, files, samples, minReg, \
-    fraction, fOut, clusFile, verbose):
+    fraction, fOut, chrOrder, clusFile, verbose):
   '''
   Control processing of files when given file of
     cluster information, one chrom at a time.
@@ -673,17 +672,21 @@ def processChromClus(infiles, files, samples, minReg, \
     lines.append(f.readline())
 
   # load first line of cluster info
-  total = sites = 0
-  printed = 0
   f = openRead(clusFile)
   line = f.readline().rstrip()
-  idx = dict()
-  clus = list()
-  refChrom, line, cpg = loadSites(f, line, idx, clus)
 
-  while refChrom:
+  total = sites = 0
+  printed = 0
+
+  # process each chrom
+  for refChrom in chrOrder:
     if verbose:
       sys.stderr.write('  chromosome: %s\n' % refChrom)
+
+    # load cluster sites
+    idx = dict()
+    clus = list()
+    line, cpg = loadSites(f, line, refChrom, idx, clus)
     total += len(clus)
     sites += cpg
 
@@ -695,11 +698,6 @@ def processChromClus(infiles, files, samples, minReg, \
     # print output
     printed += printClus(infiles, files, samples, minReg, \
       fraction, fOut, count, clus)
-
-    # reload for next chrom
-    idx = dict()
-    clus = list()
-    refChrom, line, cpg = loadSites(f, line, idx, clus)
 
   # check for unprocessed records
   unProc = False
@@ -794,11 +792,15 @@ def main():
   files, samples = openFiles(infiles)
   writeHeader(fOut, samples, fraction)
 
+  if byChrom:
+    chrOrder = saveChrOrder(chrOrderFile, infiles, files, \
+      verbose)
+
   # if provided clusters, process directly
   if clusFile and os.path.isfile(clusFile):
     if byChrom:
       printed = processChromClus(infiles, files, samples, \
-        minReg, fraction, fOut, clusFile, verbose)
+        minReg, fraction, fOut, chrOrder, clusFile, verbose)
     else:
       printed = processFilesClus(infiles, files, samples, \
         minReg, fraction, fOut, clusFile, verbose)
@@ -812,8 +814,6 @@ def main():
 
     # cluster and produce output
     if byChrom:
-      chrOrder = saveChrOrder(chrOrderFile, infiles, files, \
-        verbose)
       printed = processChrom(infiles, files, samples, minReads, \
         minSamples, maxDist, minCpG, minReg, maxLen, fraction, \
         fOut, chrOrder, fClus, verbose)
