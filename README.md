@@ -86,7 +86,7 @@ There are many command-line options in Bismark, which are described in the [User
 
 Following alignment, some researchers choose to remove reads that may be PCR duplicates.  We do not recommend using Bismark's deduplication script for this purpose; it simply keeps the first read at a given position in the alignment file and eliminates the rest, regardless of the reads' sequences or methylation information.
 
-A [bug](https://github.com/FelixKrueger/Bismark/issues/56) related to ambiguous read alignments crept into version 0.16.0 of Bismark.  Until this is [fixed](https://github.com/FelixKrueger/Bismark/pull/58), we recommend [version 0.15.0](https://github.com/FelixKrueger/Bismark/releases/tag/v0.15.0).
+A [bug](https://github.com/FelixKrueger/Bismark/issues/56) related to ambiguous read alignments crept into version 0.16.0 of Bismark.  [Until this is fixed](https://github.com/FelixKrueger/Bismark/pull/58), we recommend [version 0.15.0](https://github.com/FelixKrueger/Bismark/releases/tag/v0.15.0).
 <br><br>
 
 ## Extracting methylation counts <a name="extract"></a>
@@ -225,9 +225,11 @@ Usage: python combine_CpG_sites.py  [options]  -o <output>  [<input>]+
       -m <int>    Min. total counts in a region (def. 20)
     Other:
       -f          Report methylation fraction for each sample
-      -b          Memory-saving option (may take longer)
-      -e <file>   File listing ordered chromosome names (used
-                    only with -b option)
+      -y <file>   Report clusters of valid CpG sites;
+                    if <file> exists, use these clusters
+      -b          Analyze one chromosome at a time (memory-saving)
+      -e <file>   File listing ordered chromosome names (comma-
+                    separated; used only with -b option)
 ```
 ---
 
@@ -289,16 +291,29 @@ With this option, the output file will contain only one column per sample, which
 <br><br>
 
 ```
-      -b          Memory-saving option (may take longer)
+      -y <file>   Report clusters of valid CpG sites;
+                    if <file> exists, use these clusters
 ```
-This option causes the script to analyze the input files one chromosome at a time, rather than loading the files into memory all at once.  For large input files, this option is preferred.  Note that the chromosomes must be in the same order in the input files.
+If the given `<file>` does not exist, the script will produce a file listing the clusters it created, one line per cluster (reference name followed by a comma-separated list of CpG sites).
+
+If the `<file>` does exist, the script will skip the clustering process detailed above and will instead use the defined clusters to sum methylation counts from the input files.  The clustering parameters (`-r`, `-s`, `-d`, `-c`, `-x`) are ignored, except for `-m`.
+
+This is a convenience option for those processing large numbers of samples or different sets of samples.  One can perform the clustering on a subset of the samples, and then use the defined clusters to extract counts from all of the samples.  This will greatly reduce time and memory requirements.
 <br><br>
 
 ```
-      -e <file>   File listing ordered chromosome names (used
-                    only with -b option)
+      -b          Analyze one chromosome at a time (memory-saving)
 ```
-When specifying the `-b` option (above), this script will attempt to construct the correct chromosome order.  In rare cases (e.g., when multiple samples are missing counts for certain chromosomes), the script may fail to produce the correct order, and it will incorrectly complain about sorted input files being unsorted.  When this occurs, one can avoid the error by providing the correct chromosome order as a comma- or line-separated list in a file via `-e`.  Note that one can use the file generated via the `-e` option of `extract_CpG_data.py`.
+This option causes the script to analyze the input files one chromosome at a time, rather than loading the files into memory all at once.  For large input files, this option is preferred.  Note that the chromosomes must be in the same order in the input files.
+
+By default, the script will attempt to contruct the correct chromosome order from the input files.  This can be time-consuming, and in rare cases (e.g., when multiple samples are missing counts for certain chromosomes), the script may fail to produce the correct order and incorrectly complain about sorted input files being unsorted.  To avoid this, one can use the `-e` option, below.
+<br><br>
+
+```
+      -e <file>   File listing ordered chromosome names (comma-
+                    separated; used only with -b option)
+```
+This option allows one to provide the correct chromosome order as a comma- or line-separated list.  All input files must list methylation counts in the same given order.  Note that one can use the file generated via the `-e` option of `extract_CpG_data.py`.
 <br><br>
 
 
@@ -438,6 +453,8 @@ The following options work for all scripts in DMRfinder:
 <a name="ref2"></a> [2]  Feng H, Conneely KN, Wu H. A Bayesian hierarchical model to detect differentially methylated loci from single nucleotide resolution sequencing data. Nucleic Acids Res. 2014 Apr;42(8):e69.
 
 <a name="ref3"></a> [3]  Langmead B, Salzberg SL. Fast gapped-read alignment with Bowtie 2. Nat Methods. 2012 Mar 4;9(4):357-9.
+
+[4]  Gaspar JM, Hart RP. DMRfinder: efficiently identifying differentially methylated regions from MethylC-seq data. BMC Bioinformatics. 2017 Nov 29;18(1):528.
 <br><br>
 
 ### Contact <a name="contact"></a>
