@@ -534,7 +534,7 @@ def printClus(infiles, files, samples, minReg, \
   Print counts for each cluster.
   '''
   printed = 0
-  for i in xrange(len(clus)):
+  for i in range(len(clus)):
     res = clus[i]
     for sample in samples:
 
@@ -572,7 +572,7 @@ def processFilesClus(infiles, files, samples, minReg, \
   clus, idx = loadClusters(clusFile, verbose)
 
   # load methylation information for each sample
-  count = [{} for i in xrange(len(clus))]
+  count = [{} for i in range(len(clus))]
   if verbose:
     sys.stderr.write('Loading methylation information\n')
   for i in range(len(infiles)):
@@ -691,7 +691,7 @@ def processChromClus(infiles, files, samples, minReg, \
     sites += cpg
 
     # load counts
-    count = [{} for i in xrange(len(clus))]
+    count = [{} for i in range(len(clus))]
     loadCountsClusChrom(files, samples, lines, refChrom, \
       count, idx)
 
