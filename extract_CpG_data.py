@@ -78,8 +78,11 @@ def getInt(arg):
   try:
     val = int(arg)
   except ValueError:
-    sys.stderr.write('Error! Cannot convert %s to int\n' % arg)
-    sys.exit(-1)
+    try:
+      val = int(float(arg))
+    except ValueError:
+      sys.stderr.write('Error! Cannot convert %s to int\n' % arg)
+      sys.exit(-1)
   return val
 
 def loadBed(bedFile, bedRegions, bedSites):
