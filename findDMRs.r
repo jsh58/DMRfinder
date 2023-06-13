@@ -369,7 +369,7 @@ for (col in c(sampleCols, groupCols)) {
 }
 
 # sort chromosome names by number/letter
-level <- levels(res$chr)
+level <- levels(as.factor(res$chr))
 intChr <- strChr <- intLev <- strLev <- c()
 for (i in 1:length(level)) {
   if (substr(level[i], 1, 3) == 'chr') {
